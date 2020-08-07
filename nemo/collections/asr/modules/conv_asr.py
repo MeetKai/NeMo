@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections import OrderedDict
+from typing import Dict
 
 import torch
 import torch.nn as nn
@@ -31,6 +32,7 @@ from nemo.core.neural_types import (
 )
 from nemo.utils import logging
 from nemo.utils.decorators import experimental
+from nemo.utils.export_utils import auto_expand, expand_BatchNorm1d, expand_Conv1D, swap_expanded
 
 __all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
 
@@ -44,15 +46,19 @@ class ConvASREncoder(NeuralModule, Exportable):
         https://arxiv.org/pdf/1910.10261.pdf
     """
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, expand_dims: bool = False, **kwargs):
         m_count = 0
-        for m in self.modules():
+        for name, m in self.named_modules():
             if type(m).__name__ == "MaskedConv1d":
                 m.use_mask = False
                 m_count += 1
-        logging.warning(f"Turned off {m_count} masked convolutions")
 
-        input_example = torch.randn(16, self.__feat_in, 256).to(next(self.parameters()).device)
+        logging.warning(f"Turned off {m_count} masked convolutions")
+        if expand_dims:
+            auto_expand(self)
+            input_example = torch.randn(16, self.__feat_in, 256, 1).to(next(self.parameters()).device)
+        else:
+            input_example = torch.randn(16, self.__feat_in, 256).to(next(self.parameters()).device)
         return input_example, None
 
     @property
@@ -222,7 +228,7 @@ class ConvASRDecoder(NeuralModule, Exportable):
     def forward(self, encoder_output):
         return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         """
         Returns a pair in input, output examples for tracing.
         Returns:

@@ -15,10 +15,12 @@ import os
 import tempfile
 
 import pytest
+import torch
 from omegaconf import DictConfig
 
 from nemo.collections.asr.modules import ConvASRDecoder, ConvASREncoder
 from nemo.collections.nlp.modules.common import BertPretrainingTokenClassifier, TokenClassifier
+from nemo.core import typecheck
 
 
 class TestExportable:
@@ -50,7 +52,95 @@ class TestExportable:
             encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict))
             assert isinstance(encoder_instance, ConvASREncoder)
             filename = os.path.join(tmpdir, 'qn_encoder.onnx')
-            encoder_instance.export(output=filename)
+            encoder_instance.export(output=filename, expand_dims=False)
+
+    @pytest.mark.unit
+    def test_ConvASREncoder_export_to_onnx_expanded(self):
+        encoder_dict = {
+            'cls': 'nemo.collections.asr.modules.ConvASREncoder',
+            'params': {
+                'feat_in': 64,
+                'activation': 'relu',
+                'conv_mask': True,
+                'jasper': [
+                    {
+                        'filters': 1024,
+                        'repeat': 1,
+                        'kernel': [1],
+                        'stride': [1],
+                        'dilation': [1],
+                        'dropout': 0.0,
+                        'residual': False,
+                        'separable': True,
+                        'se': True,
+                        'se_context_size': -1,
+                    }
+                ],
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict))
+            assert isinstance(encoder_instance, ConvASREncoder)
+            filename = os.path.join(tmpdir, 'qn_encoder.onnx')
+            encoder_instance.export(output=filename, expand_dims=True)
+
+    @pytest.mark.unit
+    def test_ConvASREncoder_prepare_expanded_export(self):
+        encoder_dict = {
+            'cls': 'nemo.collections.asr.modules.ConvASREncoder',
+            'params': {
+                'feat_in': 64,
+                'activation': 'relu',
+                'conv_mask': True,
+                'jasper': [
+                    {
+                        'filters': 1024,
+                        'repeat': 1,
+                        'kernel': [1],
+                        'stride': [1],
+                        'dilation': [1],
+                        'dropout': 0.0,
+                        'residual': False,
+                        'separable': True,
+                        'se': True,
+                        'se_context_size': -1,
+                    },                    {
+                        'filters': 1024,
+                        'repeat': 1,
+                        'kernel': [1],
+                        'stride': [1],
+                        'dilation': [1],
+                        'dropout': 0.0,
+                        'residual': False,
+                        'separable': True,
+                        'se': True,
+                        'se_context_size': 5,
+                    },
+                    {
+                        'filters': 1024,
+                        'repeat': 1,
+                        'kernel': [1],
+                        'stride': [1],
+                        'dilation': [1],
+                        'dropout': 0.0,
+                        'residual': False,
+                        'separable': True,
+                        'se': False,
+                        'se_context_size': -1,
+                    }
+                ],
+            },
+        }
+        encoder_instance = ConvASREncoder.from_config_dict(DictConfig(encoder_dict))
+        encoder_instance_expanded = ConvASREncoder.from_config_dict(DictConfig(encoder_dict))
+        encoder_instance_expanded.load_state_dict(encoder_instance.state_dict())
+        typecheck.set_typecheck_enabled(False)
+        inp_example, _ = encoder_instance._prepare_for_export(expand_dims=False)
+        encoder_instance_expanded._prepare_for_export(expand_dims=True)
+
+        base = encoder_instance(inp_example)
+        expanded = encoder_instance_expanded(inp_example.unsqueeze(-1))
+        assert torch.allclose(base, expanded.squeeze(-1))
 
     @pytest.mark.unit
     def test_token_classifier_export_to_onnx(self):

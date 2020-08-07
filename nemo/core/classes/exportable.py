@@ -22,6 +22,7 @@ import torch
 
 from nemo.core.classes import typecheck
 from nemo.core.neural_types import AxisKind, NeuralType
+from nemo.utils.injection_utils import run_injected
 
 __all__ = ['ExportFormat', 'Exportable']
 
@@ -43,10 +44,20 @@ class Exportable(ABC):
     """
     This Interface should be implemented by particular classes derived from nemo.core.NeuralModule or nemo.core.ModelPT.
     It gives these entities ability to be exported for deployment to formats such as ONNX.
+
+    The extra kwargs passed to this function are passed through to _prepare_for_export to enable conditional export preparation.
     """
 
     def export(
-        self, output: str, input_example=None, output_example=None, onnx_opset_version=12, try_script=False,
+        self,
+        output: str,
+        input_example=None,
+        output_example=None,
+        onnx_opset_version: int = 12,
+        try_script: bool = False,
+        *,
+        set_eval: bool = True,
+        **kwargs,
     ):
         try:
             # Disable typechecks
@@ -58,7 +69,7 @@ class Exportable(ABC):
 
             format = _EXT_DICT[file_extension]
 
-            _in_example, _out_example = self._prepare_for_export()
+            _in_example, _out_example = run_injected(self._prepare_for_export, **kwargs)
 
             if input_example is not None:
                 _in_example = input_example
@@ -90,7 +101,8 @@ class Exportable(ABC):
                 dynamic_axes = None
 
             # Set module to eval mode
-            self.eval()
+            if set_eval:
+                self.eval()
 
             with torch.jit.optimized_execution(True):
                 jitted_model = None
@@ -126,6 +138,7 @@ class Exportable(ABC):
                         verbose=False,
                         export_params=True,
                         do_constant_folding=True,
+                        keep_initializers_as_inputs=True,
                         dynamic_axes=dynamic_axes,
                         opset_version=onnx_opset_version,
                         example_outputs=_out_example,
@@ -178,7 +191,7 @@ class Exportable(ABC):
                     dynamic_axes[name].append(ind)
         return dynamic_axes
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         """
         Implement this method to prepare module for export. Do all necessary changes on module pre-export here.
         Also, return a pair in input, output examples for tracing.

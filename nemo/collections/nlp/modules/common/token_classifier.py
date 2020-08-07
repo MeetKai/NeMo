@@ -92,7 +92,7 @@ class TokenClassifier(NeuralModule, Exportable):
         logits = self.mlp(hidden_states)
         return logits
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         """
         Returns a pair in input, output examples for tracing.
         Returns:
@@ -195,7 +195,7 @@ class BertPretrainingTokenClassifier(NeuralModule, Exportable):
         logits = self.mlp(transform)
         return logits
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         """
         Returns a pair in input, output examples for tracing.
         Returns:

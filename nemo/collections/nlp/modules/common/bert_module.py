@@ -70,7 +70,7 @@ class BertModule(NeuralModule, Exportable):
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
 
-    def _prepare_for_export(self):
+    def _prepare_for_export(self, **kwargs):
         """
         Returns a pair in input, output examples for tracing.
         Returns:
