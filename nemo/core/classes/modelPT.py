@@ -397,7 +397,18 @@ class ModelPT(LightningModule, Model):
                 OmegaConf.set_struct(conf, True)
                 instance = cls.from_config_dict(config=conf)
                 instance = instance.to(map_location)
-                instance.load_state_dict(torch.load(model_weights, map_location=map_location), strict=strict)
+
+                instance_state_dict = instance.state_dict()
+                state_dict = torch.load(model_weights, map_location=map_location)
+                if not strict:
+                    mismatched_layers = set()
+                    for k, v in state_dict.items():
+                        if k in instance_state_dict and instance_state_dict[k].shape != v.shape:
+                            mismatched_layers.add(k)
+                            logging.warning(f"Size mismatch for {k}: ignoring weights")
+                    [state_dict.pop(name) for name in mismatched_layers]
+
+                instance.load_state_dict(state_dict=state_dict, strict=strict)
 
                 logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
             finally:
