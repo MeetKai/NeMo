@@ -56,13 +56,15 @@ def normalize_batch(x, seq_len, normalize_type):
         x_mean = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
         x_std = torch.zeros((seq_len.shape[0], x.shape[1]), dtype=x.dtype, device=x.device)
         for i in range(x.shape[0]):
-            if x[i, :, : seq_len[i]].shape[1] == 1:
-                raise ValueError(
-                    "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
-                    "in torch.std() returning nan"
-                )
+            # if x[i, :, : seq_len[i]].shape[1] == 1:
+            #     raise ValueError(
+            #         "normalize_batch with `per_feature` normalize_type received a tensor of length 1. This will result "
+            #         "in torch.std() returning nan"
+            #     )
             x_mean[i, :] = x[i, :, : seq_len[i]].mean(dim=1)
-            x_std[i, :] = x[i, :, : seq_len[i]].std(dim=1)
+            x_std[i, :] = x[i, :, : seq_len[i]].std(
+                dim=1, unbiased=False if x[i, :, : seq_len[i]].shape[1] == 1 else True,
+            )
         # make sure x_std is not zero
         x_std += CONSTANT
         return (x - x_mean.unsqueeze(2)) / x_std.unsqueeze(2)
