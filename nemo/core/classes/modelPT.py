@@ -836,7 +836,10 @@ class ModelPT(LightningModule, Model):
 
         else:
             optimizer = optim.get_optimizer(optimizer_name)
-            optimizer = optimizer(self.parameters(), **optimizer_args)
+            if "params" not in optimizer_args:
+                optimizer = optimizer(self.parameters(), **optimizer_args)
+            else:
+                optimizer = optimizer(**optimizer_args)
 
             logging.info("Optimizer config = %s", str(optimizer))
 
