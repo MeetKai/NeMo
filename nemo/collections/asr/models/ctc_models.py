@@ -415,7 +415,12 @@ class EncDecCTCModel(ASRModel, Exportable):
                 predictions=predictions, targets=transcript, target_lengths=transcript_len,
             )
             wer, _, _ = self._wer.compute()
-            tensorboard_logs.update({'training_batch_wer': wer})
+            log_dict = {'training_batch_wer': wer}
+            if self._cer:
+                self._cer.update(predictions=predictions, targets=transcript, target_lengths=transcript_len)
+                cer, _, _ = self._cer.compute()
+                log_dict['training_batch_cer'] = cer
+            tensorboard_logs.update(log_dict)
 
         return {'loss': loss_value, 'log': tensorboard_logs}
 
@@ -433,12 +438,23 @@ class EncDecCTCModel(ASRModel, Exportable):
         )
         self._wer.update(predictions=predictions, targets=transcript, target_lengths=transcript_len)
         wer, wer_num, wer_denom = self._wer.compute()
-        return {
+        return_dict = {
             'val_loss': loss_value,
             'val_wer_num': wer_num,
             'val_wer_denom': wer_denom,
             'val_wer': wer,
         }
+        if self._cer:
+            self._cer.update(predictions=predictions, targets=transcript, target_lengths=transcript_len)
+            cer, cer_num, cer_denom = self._cer.compute()
+            return_dict.update(
+                {
+                    'val_cer_num': cer_num,
+                    'val_cer_denom': cer_denom,
+                    'val_cer': cer,
+                }
+            )
+        return return_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
@@ -448,6 +464,14 @@ class EncDecCTCModel(ASRModel, Exportable):
             'test_wer_denom': logs['val_wer_denom'],
             'test_wer': logs['val_wer'],
         }
+        if self._cer:
+            test_logs.update(
+                {
+                    'test_cer_num': logs['val_cer_num'],
+                    'test_cer_denom': logs['val_cer_denom'],
+                    'test_cer': logs['val_cer'],
+                }
+            )
         return test_logs
 
     def test_dataloader(self):

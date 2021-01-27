@@ -92,6 +92,17 @@ class EncDecCTCModelBPE(EncDecCTCModel, ASRBPEMixin):
             log_prediction=self._cfg.get("log_prediction", False),
         )
 
+        self._cer = None
+        if not self._cfg.get('use_cer', False):
+            self._cer = WERBPE(
+                tokenizer=self.tokenizer,
+                batch_dim_index=0,
+                use_cer=True,
+                ctc_decode=True,
+                dist_sync_on_step=True,
+                log_prediction=self._cfg.get("log_prediction", False),
+            )
+
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         if 'augmentor' in config:
             augmentor = process_augmentations(config['augmentor'])
